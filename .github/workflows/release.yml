@@ -91,8 +91,69 @@ jobs:
           name: packages-${{ matrix.arch }}
           path: out/*
 
+  build-windows:
+    name: build windows ${{ matrix.arch }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: windows-latest
+            target: x86_64-pc-windows-msvc
+            arch: x86_64
+            wix: x64
+          - runner: windows-11-arm
+            target: aarch64-pc-windows-msvc
+            arch: aarch64
+            wix: arm64
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - uses: ilammy/setup-nasm@v1
+        if: matrix.arch == 'x86_64'
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.target }}
+
+      - name: Build
+        run: |
+          cargo build --release --locked --target ${{ matrix.target }}
+          & "target/${{ matrix.target }}/release/rsh.exe" --version
+
+      - name: Stage files
+        run: |
+          New-Item -ItemType Directory -Force dist/completions, out | Out-Null
+          Copy-Item "target/${{ matrix.target }}/release/rsh.exe" dist/
+          Copy-Item README.md dist/
+          Copy-Item -Recurse docs dist/docs
+          & ./dist/rsh.exe completions powershell | Out-File -Encoding utf8 dist/completions/rsh.ps1
+
+      - name: Zip
+        run: Compress-Archive -Path dist/* -DestinationPath out/rsh-${{ matrix.arch }}-windows.zip
+
+      - name: MSI
+        run: |
+          $version = (Select-String -Path Cargo.toml -Pattern '^version = "(.+)"' | Select-Object -First 1).Matches.Groups[1].Value
+          dotnet tool install --global wix --version 5.0.2
+          wix build packaging/windows/rsh.wxs -arch ${{ matrix.wix }} -d Version=$version -d BinDir=dist -o out/rsh-${{ matrix.arch }}.msi
+          Remove-Item out/*.wixpdb -ErrorAction SilentlyContinue
+          Get-ChildItem out
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: packages-windows-${{ matrix.arch }}
+          path: out/*
+
   release:
-    needs: build
+    needs: [build, build-windows]
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
@@ -104,7 +165,7 @@ jobs:
 
       - name: Checksums
         run: |
-          cp install.sh out/
+          cp install.sh install.ps1 out/
           cd out && sha256sum * > SHA256SUMS && cat SHA256SUMS
 
       - name: Publish release
@@ -163,3 +224,34 @@ jobs:
         run: |
           rsh --version
           rsh completions bash > /dev/null
+
+  smoke-test-windows:
+    needs: release
+    name: install on ${{ matrix.runner }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [windows-latest, windows-11-arm]
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - name: One-line install
+        env:
+          RSH_VERSION: ${{ github.ref_type == 'tag' && github.ref_name || '' }}
+        run: |
+          $tag = if ($env:RSH_VERSION) { $env:RSH_VERSION } else { 'latest' }
+          $url = if ($tag -eq 'latest') { "https://github.com/${{ github.repository }}/releases/latest/download/install.ps1" } else { "https://github.com/${{ github.repository }}/releases/download/$tag/install.ps1" }
+          irm $url | iex
+          rsh --version
+          rsh completions powershell | Out-Null
+      - name: MSI install
+        run: |
+          $tag = if ('${{ github.ref_type }}' -eq 'tag') { '${{ github.ref_name }}' } else { 'latest' }
+          $arch = if ($env:PROCESSOR_ARCHITECTURE -eq 'ARM64') { 'aarch64' } else { 'x86_64' }
+          $base = if ($tag -eq 'latest') { "https://github.com/${{ github.repository }}/releases/latest/download" } else { "https://github.com/${{ github.repository }}/releases/download/$tag" }
+          Invoke-WebRequest -UseBasicParsing "$base/rsh-$arch.msi" -OutFile rsh.msi
+          $p = Start-Process msiexec -ArgumentList '/i', 'rsh.msi', '/qn', '/norestart' -Wait -PassThru
+          if ($p.ExitCode -ne 0) { throw "msiexec exited with $($p.ExitCode)" }
+          & "$env:ProgramFiles\rsh\rsh.exe" --version

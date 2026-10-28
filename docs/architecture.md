@@ -53,6 +53,7 @@ pausing the input thread, restoring the terminal and resuming afterwards.
 | `config.rs` | `Settings`, config paths |
 | `event.rs` | `AppEvent`, the single message type from tasks to the UI |
 | `util.rs` | Formatting, paths, atomic `0600` writes |
+| `platform.rs` | OS differences: file modes, private files, editor/pager launch, process detaching, ping flags. The hand-off transport and ssh-agent selection have their own `cfg` blocks |
 
 ## Life of a connection
 

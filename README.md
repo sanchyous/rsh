@@ -11,7 +11,8 @@ Host tree · encrypted vault · built-in terminal · Total-Commander-style SFTP 
 ![SSH](https://img.shields.io/badge/ssh-russh-bb9af7?style=flat-square)
 [![CI](https://github.com/sanchyous/rsh/actions/workflows/ci.yml/badge.svg)](https://github.com/sanchyous/rsh/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/sanchyous/rsh?style=flat-square&color=7aa2f7)](https://github.com/sanchyous/rsh/releases/latest)
-![Platform](https://img.shields.io/badge/platform-linux-73daca?style=flat-square&logo=linux&logoColor=white)
+![Linux](https://img.shields.io/badge/linux-x86__64%20%7C%20aarch64-73daca?style=flat-square&logo=linux&logoColor=white)
+![Windows](https://img.shields.io/badge/windows-x64%20%7C%20arm64-7dcfff?style=flat-square&logo=windows&logoColor=white)
 
 **English** · [Русский](README.ru.md)
 
@@ -54,10 +55,16 @@ passwords safe, and copying a file still means a second tool. RSH puts all of th
 
 ## Install
 
-**One command, any distro** (detects your package manager and architecture, verifies the checksum):
+**Linux: one command, any distro** (detects your package manager and architecture, verifies the checksum):
 
 ```bash
 curl -fsSL https://github.com/sanchyous/rsh/releases/latest/download/install.sh | sh
+```
+
+**Windows: one command in PowerShell** (no admin rights; installs to `%LOCALAPPDATA%\Programs\rsh` and adds it to `PATH`):
+
+```powershell
+irm https://github.com/sanchyous/rsh/releases/latest/download/install.ps1 | iex
 ```
 
 <details>
@@ -100,14 +107,26 @@ sudo apk add --allow-untrusted ./rsh-x86_64.apk
 curl -fsSL https://github.com/sanchyous/rsh/releases/latest/download/install.sh | RSH_INSTALL_METHOD=tarball RSH_PREFIX=~/.local sh
 ```
 
-**From source** (Rust 1.88+ and a C compiler)
+**Windows: MSI installer** (system-wide, adds `rsh` to `PATH`, uninstall from *Apps & features*): download `rsh-x86_64.msi` or `rsh-aarch64.msi` from the [latest release](https://github.com/sanchyous/rsh/releases/latest) and run it, or silently:
+```powershell
+irm https://github.com/sanchyous/rsh/releases/latest/download/rsh-x86_64.msi -OutFile rsh.msi; msiexec /i rsh.msi /qn
+```
+
+**Windows: Scoop**
+```powershell
+scoop install https://raw.githubusercontent.com/sanchyous/rsh/main/packaging/scoop/rsh.json
+```
+
+**Windows: portable zip.** `rsh-x86_64-windows.zip` / `rsh-aarch64-windows.zip`: unpack and run `rsh.exe`.
+
+**From source** (Rust 1.88+ and a C compiler; NASM on Windows x64)
 ```bash
 cargo install --locked --git https://github.com/sanchyous/rsh
 ```
 
 </details>
 
-Every package ships the man page (`man rsh`) and bash / zsh / fish completions.
+Linux packages ship the man page (`man rsh`) and bash / zsh / fish completions; Windows builds ship PowerShell completion.
 
 | Variable | Meaning |
 |---|---|
@@ -115,7 +134,7 @@ Every package ships the man page (`man rsh`) and bash / zsh / fish completions.
 | `RSH_INSTALL_METHOD=deb\|rpm\|pacman\|apk\|tarball` | Force the package type |
 | `RSH_PREFIX=~/.local` | Where the tarball method installs |
 
-Uninstall: `curl -fsSL https://github.com/sanchyous/rsh/releases/latest/download/install.sh | sh -s -- --uninstall`
+Uninstall. Linux: `curl -fsSL https://github.com/sanchyous/rsh/releases/latest/download/install.sh | sh -s -- --uninstall` · Windows: `$env:RSH_UNINSTALL=1; irm https://github.com/sanchyous/rsh/releases/latest/download/install.ps1 | iex`
 
 ## Quick start
 

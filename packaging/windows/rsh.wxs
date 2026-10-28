@@ -1,0 +1,30 @@
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+  <Package Name="RSH" Manufacturer="sanchyous" Version="$(Version)" Scope="perMachine"
+           UpgradeCode="742dcb55-64c1-481f-bb4c-248858d86453">
+    <SummaryInformation Description="RSH — terminal SSH / SFTP / SCP commander" />
+    <MajorUpgrade DowngradeErrorMessage="A newer version of RSH is already installed." />
+    <MediaTemplate EmbedCab="yes" />
+    <Property Id="ARPURLINFOABOUT" Value="https://github.com/sanchyous/rsh" />
+
+    <StandardDirectory Id="ProgramFiles64Folder">
+      <Directory Id="INSTALLFOLDER" Name="rsh">
+        <Component Id="Binary">
+          <File Source="$(BinDir)\rsh.exe" KeyPath="yes" />
+          <Environment Id="PathEntry" Name="PATH" Value="[INSTALLFOLDER]" Part="last" Action="set" System="yes" Permanent="no" />
+        </Component>
+        <Component Id="Readme">
+          <File Source="$(BinDir)\README.md" />
+        </Component>
+        <Component Id="Completion">
+          <File Source="$(BinDir)\completions\rsh.ps1" Name="rsh-completion.ps1" />
+        </Component>
+      </Directory>
+    </StandardDirectory>
+
+    <Feature Id="Main" Title="RSH">
+      <ComponentRef Id="Binary" />
+      <ComponentRef Id="Readme" />
+      <ComponentRef Id="Completion" />
+    </Feature>
+  </Package>
+</Wix>

@@ -16,17 +16,21 @@ away. This page documents the files behind it.
 
 The config directory is created with `0700` permissions, and every file is written atomically with `0600`.
 
+On **Windows** the same files live in `%APPDATA%\rsh\` (the edit cache in `%LOCALAPPDATA%\rsh\edit\`). Your profile
+directory is already private to your account, so no extra ACLs are applied. The hand-off endpoint is a named pipe
+(`\\.\pipe\rsh-handoff-<pid>-<random>`), and `~/.ssh/known_hosts` means `%USERPROFILE%\.ssh\known_hosts`.
+
 ## Environment
 
 | Variable | Effect |
 |---|---|
 | `RSH_CONFIG_DIR` | Use another config directory, e.g. a separate profile or a test sandbox |
 | `TERMINAL` | Preferred emulator for <kbd>w</kbd> when the setting is `auto` |
-| `VISUAL`, `EDITOR` | Editor for <kbd>F4</kbd> when the setting is empty (falls back to `nano`) |
-| `PAGER` | Viewer for <kbd>Enter</kbd> on a file (falls back to `less`) |
+| `VISUAL`, `EDITOR` | Editor for <kbd>F4</kbd> when the setting is empty (falls back to `nano`, or `notepad` on Windows) |
+| `PAGER` | Viewer for <kbd>Enter</kbd> on a file (falls back to `less`, or `more` on Windows) |
 | `COLORTERM`, `TERM` | Colour depth detection in `auto` mode. `TERM=linux` turns on TTY mode |
 | `LANG`, `LC_ALL`, `LC_CTYPE` | A non-UTF-8 locale turns on TTY mode in `auto` |
-| `SSH_AUTH_SOCK` | ssh-agent used by the *Agent* and *Auto* auth methods |
+| `SSH_AUTH_SOCK` | ssh-agent used by the *Agent* and *Auto* auth methods. On Windows RSH talks to the OpenSSH agent service (`\\.\pipe\openssh-ssh-agent`) and then Pageant |
 
 ## `settings.toml`
 
@@ -62,6 +66,10 @@ Missing keys take their defaults, so the file can be as short as you like.
 With `terminal_cmd = "auto"` RSH uses `$TERMINAL`. If that is unset, it prefers kitty when running inside kitty,
 otherwise it takes the first available of kitty, alacritty, foot, wezterm, ghostty, konsole, gnome-terminal,
 xfce4-terminal and xterm, with the right arguments for each.
+
+On **Windows**, `auto` opens a new console window with `start`. If Windows Terminal is your default terminal
+application, the window opens in Windows Terminal. Setting `terminal_cmd = "wt"` also works, but Windows Terminal may
+not pass the hand-off environment to the new tab. In that case the window will ask for the master password.
 
 Any other emulator works through a template. `{cmd}` expands to the RSH command line and `{title}` to the window title:
 

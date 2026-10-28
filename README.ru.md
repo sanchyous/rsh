@@ -11,7 +11,8 @@
 ![SSH](https://img.shields.io/badge/ssh-russh-bb9af7?style=flat-square)
 [![CI](https://github.com/sanchyous/rsh/actions/workflows/ci.yml/badge.svg)](https://github.com/sanchyous/rsh/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/sanchyous/rsh?style=flat-square&color=7aa2f7)](https://github.com/sanchyous/rsh/releases/latest)
-![Platform](https://img.shields.io/badge/platform-linux-73daca?style=flat-square&logo=linux&logoColor=white)
+![Linux](https://img.shields.io/badge/linux-x86__64%20%7C%20aarch64-73daca?style=flat-square&logo=linux&logoColor=white)
+![Windows](https://img.shields.io/badge/windows-x64%20%7C%20arm64-7dcfff?style=flat-square&logo=windows&logoColor=white)
 
 [English](README.md) · **Русский**
 
@@ -54,10 +55,16 @@
 
 ## Установка
 
-**Одна команда для любого дистрибутива** (сама определит пакетный менеджер и архитектуру, проверит контрольную сумму):
+**Linux: одна команда для любого дистрибутива** (сама определит пакетный менеджер и архитектуру, проверит контрольную сумму):
 
 ```bash
 curl -fsSL https://github.com/sanchyous/rsh/releases/latest/download/install.sh | sh
+```
+
+**Windows: одна команда в PowerShell** (без прав администратора; ставит в `%LOCALAPPDATA%\Programs\rsh` и добавляет в `PATH`):
+
+```powershell
+irm https://github.com/sanchyous/rsh/releases/latest/download/install.ps1 | iex
 ```
 
 <details>
@@ -100,14 +107,26 @@ sudo apk add --allow-untrusted ./rsh-x86_64.apk
 curl -fsSL https://github.com/sanchyous/rsh/releases/latest/download/install.sh | RSH_INSTALL_METHOD=tarball RSH_PREFIX=~/.local sh
 ```
 
-**Из исходников** (Rust 1.88+ и компилятор C)
+**Windows: MSI-установщик** (для всей системы, добавляет `rsh` в `PATH`, удаляется через «Приложения и возможности»): скачайте `rsh-x86_64.msi` или `rsh-aarch64.msi` из [последнего релиза](https://github.com/sanchyous/rsh/releases/latest) и запустите, или тихо:
+```powershell
+irm https://github.com/sanchyous/rsh/releases/latest/download/rsh-x86_64.msi -OutFile rsh.msi; msiexec /i rsh.msi /qn
+```
+
+**Windows: Scoop**
+```powershell
+scoop install https://raw.githubusercontent.com/sanchyous/rsh/main/packaging/scoop/rsh.json
+```
+
+**Windows: портативный zip.** `rsh-x86_64-windows.zip` / `rsh-aarch64-windows.zip`: распаковать и запустить `rsh.exe`.
+
+**Из исходников** (Rust 1.88+ и компилятор C; на Windows x64 ещё NASM)
 ```bash
 cargo install --locked --git https://github.com/sanchyous/rsh
 ```
 
 </details>
 
-Каждый пакет содержит man-страницу (`man rsh`) и автодополнение для bash / zsh / fish.
+Linux-пакеты содержат man-страницу (`man rsh`) и автодополнение для bash / zsh / fish, Windows-сборки — автодополнение для PowerShell.
 
 | Переменная | Значение |
 |---|---|
@@ -115,7 +134,7 @@ cargo install --locked --git https://github.com/sanchyous/rsh
 | `RSH_INSTALL_METHOD=deb\|rpm\|pacman\|apk\|tarball` | Принудительно выбрать тип пакета |
 | `RSH_PREFIX=~/.local` | Куда ставить в режиме tarball |
 
-Удаление: `curl -fsSL https://github.com/sanchyous/rsh/releases/latest/download/install.sh | sh -s -- --uninstall`
+Удаление. Linux: `curl -fsSL https://github.com/sanchyous/rsh/releases/latest/download/install.sh | sh -s -- --uninstall` · Windows: `$env:RSH_UNINSTALL=1; irm https://github.com/sanchyous/rsh/releases/latest/download/install.ps1 | iex`
 
 ## Быстрый старт
 

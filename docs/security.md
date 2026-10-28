@@ -52,6 +52,11 @@ secrets in `argv` or files would leak them. Instead:
    show up in `ps`. The child removes both variables from its own environment before spawning anything.
 4. The child sends the token and receives the credentials. The ticket is deleted from memory on first use.
 
+On **Windows** the endpoint is a named pipe with an unguessable name (`\\.\pipe\rsh-handoff-<pid>-<64 random bits>`),
+created with `FILE_FLAG_FIRST_PIPE_INSTANCE`, so nobody can squat the name beforehand, and with remote clients rejected.
+The default pipe DACL grants write access only to your account, SYSTEM and administrators. A process that cannot
+write cannot submit a token, and a token is useless without the 60-second, single-use ticket behind it.
+
 ## Host keys
 
 On every connection the server key is checked against RSH's own `known_hosts`, then against `~/.ssh/known_hosts`.
