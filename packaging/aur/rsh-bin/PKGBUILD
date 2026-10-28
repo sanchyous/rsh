@@ -1,0 +1,24 @@
+pkgname=rsh-bin
+pkgver=0.1.0
+pkgrel=1
+pkgdesc="Beautiful terminal SSH / SFTP / SCP commander (prebuilt static binary)"
+arch=('x86_64' 'aarch64')
+url="https://github.com/sanchyous/rsh"
+license=('unknown')
+provides=('rsh')
+conflicts=('rsh')
+source_x86_64=("rsh-$pkgver-x86_64.tar.gz::$url/releases/download/v$pkgver/rsh-x86_64-linux-musl.tar.gz")
+source_aarch64=("rsh-$pkgver-aarch64.tar.gz::$url/releases/download/v$pkgver/rsh-aarch64-linux-musl.tar.gz")
+sha256sums_x86_64=('SKIP')
+sha256sums_aarch64=('SKIP')
+
+package() {
+    cd "rsh-$CARCH-linux-musl"
+    install -Dm755 rsh "$pkgdir/usr/bin/rsh"
+    install -Dm644 rsh.1.gz "$pkgdir/usr/share/man/man1/rsh.1.gz"
+    install -Dm644 completions/rsh.bash "$pkgdir/usr/share/bash-completion/completions/rsh"
+    install -Dm644 completions/_rsh "$pkgdir/usr/share/zsh/site-functions/_rsh"
+    install -Dm644 completions/rsh.fish "$pkgdir/usr/share/fish/vendor_completions.d/rsh.fish"
+    install -Dm644 README.md "$pkgdir/usr/share/doc/rsh/README.md"
+    cp -r docs "$pkgdir/usr/share/doc/rsh/docs"
+}

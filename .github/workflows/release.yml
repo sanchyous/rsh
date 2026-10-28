@@ -1,0 +1,165 @@
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  CARGO_TERM_COLOR: always
+  NFPM_VERSION: 2.48.0
+
+jobs:
+  build:
+    name: build ${{ matrix.arch }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-24.04
+            target: x86_64-unknown-linux-musl
+            arch: x86_64
+            deb: amd64
+            nfpm: x86_64
+          - runner: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-musl
+            arch: aarch64
+            deb: arm64
+            nfpm: arm64
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Install musl toolchain and nfpm
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y musl-tools
+          curl -fsSL "https://github.com/goreleaser/nfpm/releases/download/v${NFPM_VERSION}/nfpm_${NFPM_VERSION}_Linux_${{ matrix.nfpm }}.tar.gz" \
+            | sudo tar -xz -C /usr/local/bin nfpm
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.target }}
+
+      - name: Build static binary
+        env:
+          TARGET: ${{ matrix.target }}
+        run: |
+          export "CC_$(echo "$TARGET" | tr - _)=musl-gcc"
+          cargo build --release --locked --target "$TARGET"
+          file "target/$TARGET/release/rsh"
+          "target/$TARGET/release/rsh" --version
+
+      - name: Stage files
+        env:
+          TARGET: ${{ matrix.target }}
+        run: |
+          mkdir -p dist/completions
+          cp "target/$TARGET/release/rsh" dist/rsh
+          ./dist/rsh completions bash > dist/completions/rsh.bash
+          ./dist/rsh completions zsh  > dist/completions/_rsh
+          ./dist/rsh completions fish > dist/completions/rsh.fish
+          ./dist/rsh man | gzip -9 > dist/rsh.1.gz
+
+      - name: Build packages
+        env:
+          ARCH: ${{ matrix.arch }}
+          DEB: ${{ matrix.deb }}
+        run: |
+          export VERSION="$(grep -m1 '^version' Cargo.toml | cut -d'"' -f2)"
+          export NFPM_ARCH="$DEB"
+          mkdir -p out
+          nfpm package -f packaging/nfpm.yaml -p deb       -t "out/rsh_${DEB}.deb"
+          nfpm package -f packaging/nfpm.yaml -p rpm       -t "out/rsh-${ARCH}.rpm"
+          nfpm package -f packaging/nfpm.yaml -p apk       -t "out/rsh-${ARCH}.apk"
+          nfpm package -f packaging/nfpm.yaml -p archlinux -t "out/rsh-${ARCH}.pkg.tar.zst"
+          tarname="rsh-${ARCH}-linux-musl"
+          mkdir -p "$tarname"
+          cp -r dist/rsh dist/completions dist/rsh.1.gz README.md docs "$tarname/"
+          tar -czf "out/${tarname}.tar.gz" "$tarname"
+          ls -la out
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: packages-${{ matrix.arch }}
+          path: out/*
+
+  release:
+    needs: build
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: out
+          merge-multiple: true
+
+      - name: Checksums
+        run: |
+          cp install.sh out/
+          cd out && sha256sum * > SHA256SUMS && cat SHA256SUMS
+
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="${GITHUB_REF_NAME}"
+          if [ "${GITHUB_REF_TYPE}" != "tag" ]; then
+            tag="v$(grep -m1 '^version' Cargo.toml | cut -d'"' -f2)"
+          fi
+          if gh release view "$tag" >/dev/null 2>&1; then
+            gh release upload "$tag" out/* --clobber
+          else
+            gh release create "$tag" out/* --title "rsh ${tag}" --notes-file packaging/release-notes.md --target "${GITHUB_SHA}"
+          fi
+
+  smoke-test:
+    needs: release
+    name: install on ${{ matrix.image }}
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        image:
+          - debian:stable
+          - ubuntu:24.04
+          - fedora:latest
+          - opensuse/tumbleweed
+          - archlinux:latest
+          - alpine:latest
+          - rockylinux:9
+          - voidlinux/voidlinux
+    container: ${{ matrix.image }}
+    defaults:
+      run:
+        shell: sh
+    steps:
+      - name: Prepare curl
+        run: |
+          if command -v apt-get >/dev/null; then apt-get update && apt-get install -y curl ca-certificates
+          elif command -v dnf >/dev/null; then dnf install -y curl || true
+          elif command -v zypper >/dev/null; then zypper -n install curl
+          elif command -v pacman >/dev/null; then pacman -Sy --noconfirm curl
+          elif command -v apk >/dev/null; then apk add --no-cache curl
+          elif command -v xbps-install >/dev/null; then xbps-install -Syu xbps && xbps-install -y curl
+          fi
+      - name: One-line install
+        env:
+          RSH_VERSION: ${{ github.ref_type == 'tag' && github.ref_name || '' }}
+        run: |
+          tag="${RSH_VERSION:-latest}"
+          if [ "$tag" = latest ]; then url="https://github.com/${{ github.repository }}/releases/latest/download/install.sh"
+          else url="https://github.com/${{ github.repository }}/releases/download/$tag/install.sh"; fi
+          curl -fsSL "$url" | sh
+      - name: Run
+        run: |
+          rsh --version
+          rsh completions bash > /dev/null

@@ -1,0 +1,46 @@
+name: rsh
+arch: ${NFPM_ARCH}
+platform: linux
+version: ${VERSION}
+release: 1
+section: net
+priority: optional
+maintainer: sanchyous <328162656+sanchyous@users.noreply.github.com>
+vendor: sanchyous
+homepage: https://github.com/sanchyous/rsh
+description: |-
+  Beautiful terminal SSH / SFTP / SCP commander.
+  Host tree with groups, encrypted password vault, built-in terminal with
+  diagnostics, Total-Commander-style SFTP with a console and live monitoring.
+recommends:
+  - openssh-client
+conflicts:
+  - rsh-client
+  - rsh-redone-client
+contents:
+  - src: ./dist/rsh
+    dst: /usr/bin/rsh
+    file_info:
+      mode: 0755
+  - src: ./dist/completions/rsh.bash
+    dst: /usr/share/bash-completion/completions/rsh
+  - src: ./dist/completions/_rsh
+    dst: /usr/share/zsh/site-functions/_rsh
+  - src: ./dist/completions/rsh.fish
+    dst: /usr/share/fish/vendor_completions.d/rsh.fish
+  - src: ./dist/rsh.1.gz
+    dst: /usr/share/man/man1/rsh.1.gz
+  - src: ./README.md
+    dst: /usr/share/doc/rsh/README.md
+  - src: ./docs
+    dst: /usr/share/doc/rsh/docs
+    type: tree
+overrides:
+  rpm:
+    recommends:
+      - openssh-clients
+  apk:
+    recommends: []
+  archlinux:
+    recommends: []
+    conflicts: []

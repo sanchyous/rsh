@@ -1,0 +1,47 @@
+pkgname=rsh
+pkgver=0.1.0
+pkgrel=1
+pkgdesc="Beautiful terminal SSH / SFTP / SCP commander"
+arch=('x86_64' 'aarch64')
+url="https://github.com/sanchyous/rsh"
+license=('unknown')
+depends=('gcc-libs' 'glibc')
+makedepends=('cargo')
+options=('!lto')
+source=("$pkgname-$pkgver.tar.gz::$url/archive/refs/tags/v$pkgver.tar.gz")
+sha256sums=('SKIP')
+
+prepare() {
+    cd "$pkgname-$pkgver"
+    export RUSTUP_TOOLCHAIN=stable
+    cargo fetch --locked --target "$(rustc -vV | sed -n 's/host: //p')"
+}
+
+build() {
+    cd "$pkgname-$pkgver"
+    export RUSTUP_TOOLCHAIN=stable
+    export CARGO_TARGET_DIR=target
+    cargo build --frozen --release
+    mkdir -p gen
+    target/release/rsh completions bash > gen/rsh.bash
+    target/release/rsh completions zsh > gen/_rsh
+    target/release/rsh completions fish > gen/rsh.fish
+    target/release/rsh man > gen/rsh.1
+}
+
+check() {
+    cd "$pkgname-$pkgver"
+    export RUSTUP_TOOLCHAIN=stable
+    cargo test --frozen --release
+}
+
+package() {
+    cd "$pkgname-$pkgver"
+    install -Dm755 target/release/rsh "$pkgdir/usr/bin/rsh"
+    install -Dm644 gen/rsh.1 "$pkgdir/usr/share/man/man1/rsh.1"
+    install -Dm644 gen/rsh.bash "$pkgdir/usr/share/bash-completion/completions/rsh"
+    install -Dm644 gen/_rsh "$pkgdir/usr/share/zsh/site-functions/_rsh"
+    install -Dm644 gen/rsh.fish "$pkgdir/usr/share/fish/vendor_completions.d/rsh.fish"
+    install -Dm644 README.md "$pkgdir/usr/share/doc/rsh/README.md"
+    cp -r docs "$pkgdir/usr/share/doc/rsh/docs"
+}

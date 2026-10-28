@@ -1,0 +1,40 @@
+[package]
+name = "rsh"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.88"
+description = "Beautiful terminal SSH / SFTP / SCP commander"
+authors = ["sanchyous"]
+repository = "https://github.com/sanchyous/rsh"
+homepage = "https://github.com/sanchyous/rsh"
+readme = "README.md"
+keywords = ["ssh", "sftp", "tui", "terminal", "scp"]
+categories = ["command-line-utilities", "network-programming"]
+
+[dependencies]
+anyhow = "1.0.104"
+argon2 = "0.6.0"
+chacha20poly1305 = "0.11.0"
+chrono = "0.4.45"
+clap = { version = "4.6.7", features = ["derive"] }
+clap_complete = "4.6.11"
+clap_mangen = "0.3.3"
+crossterm = "0.29.0"
+dirs = "7.0.0"
+futures = "0.3.34"
+rand = "0.10.3"
+ratatui = "0.30.2"
+russh = "0.65.0"
+russh-sftp = "3.0.1"
+serde = { version = "1.0.229", features = ["derive"] }
+tokio = { version = "1.54.1", features = ["full"] }
+toml = "1.1.8"
+unicode-width = "0.2.3"
+uuid = { version = "1.29.0", features = ["v4", "serde"] }
+vt100 = "0.18.1"
+zeroize = "1.9.1"
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+strip = true
