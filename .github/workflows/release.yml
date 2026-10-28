@@ -149,7 +149,7 @@ jobs:
           elif command -v zypper >/dev/null; then zypper -n install curl
           elif command -v pacman >/dev/null; then pacman -Sy --noconfirm curl
           elif command -v apk >/dev/null; then apk add --no-cache curl
-          elif command -v xbps-install >/dev/null; then xbps-install -Syu xbps && xbps-install -y curl
+          elif command -v xbps-install >/dev/null; then echo 'repository=https://repo-default.voidlinux.org/current' > /etc/xbps.d/00-repository-main.conf && xbps-install -Syu xbps && xbps-install -y curl
           fi
       - name: One-line install
         env:
