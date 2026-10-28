@@ -9,7 +9,7 @@ depends=('gcc-libs' 'glibc')
 makedepends=('cargo')
 options=('!lto')
 source=("$pkgname-$pkgver.tar.gz::$url/archive/refs/tags/v$pkgver.tar.gz")
-sha256sums=('SKIP')
+sha256sums=('c2d4fd1e3166bccdf8ea39539c3c27b041493d979d8de2d7eeb60d2c6e86b1bd')
 
 prepare() {
     cd "$pkgname-$pkgver"

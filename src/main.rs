@@ -6,6 +6,7 @@ mod event;
 mod handoff;
 mod i18n;
 mod monitor;
+mod platform;
 mod scp;
 mod sftp;
 mod ssh;
@@ -103,7 +104,7 @@ async fn run_tui(start: Option<Start>) -> Result<()> {
     let mut app = App::new(tx.clone(), start.is_some())?;
     spawn_input(tx.clone());
     let mut terminal = ratatui::init();
-    execute!(std::io::stdout(), EnableBracketedPaste)?;
+    let _ = execute!(std::io::stdout(), EnableBracketedPaste);
     match start {
         Some(Start::Saved(id, mode)) => app.connect(&id, mode),
         Some(Start::Direct(h, c, mode)) => app.connect_with(*h, c, mode),
@@ -129,16 +130,11 @@ async fn run_tui(start: Option<Start>) -> Result<()> {
             if let Some(Suspend { program, file, after }) = app.suspend.take() {
                 INPUT_PAUSED.store(true, Ordering::Relaxed);
                 tokio::time::sleep(Duration::from_millis(120)).await;
-                execute!(std::io::stdout(), DisableBracketedPaste)?;
+                let _ = execute!(std::io::stdout(), DisableBracketedPaste);
                 ratatui::restore();
-                let status = std::process::Command::new("sh")
-                    .arg("-c")
-                    .arg(format!("{program} \"$1\""))
-                    .arg("rsh")
-                    .arg(&file)
-                    .status();
+                let status = platform::open_with(&program, &file).status();
                 terminal = ratatui::init();
-                execute!(std::io::stdout(), EnableBracketedPaste)?;
+                let _ = execute!(std::io::stdout(), EnableBracketedPaste);
                 terminal.clear()?;
                 INPUT_PAUSED.store(false, Ordering::Relaxed);
                 if let Err(e) = status {
@@ -239,7 +235,11 @@ fn cli_events() -> UnboundedSender<AppEvent> {
 }
 
 fn split_remote<'a>(spec: &'a str, store: &Store) -> Option<(Host, &'a str)> {
-    if spec.starts_with('/') || spec.starts_with('.') || spec.starts_with('~') {
+    if spec.starts_with(['/', '.', '~', '\\']) {
+        return None;
+    }
+    let b = spec.as_bytes();
+    if b.len() >= 2 && b[0].is_ascii_alphabetic() && b[1] == b':' && (b.len() == 2 || matches!(b[2], b'\\' | b'/')) {
         return None;
     }
     let (h, path) = spec.split_once(':')?;

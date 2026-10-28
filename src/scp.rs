@@ -58,7 +58,6 @@ impl Reader {
 }
 
 pub async fn upload(h: &Handle, local: &Path, remote: &str, progress: impl Fn(u64, u64)) -> Result<()> {
-    use std::os::unix::fs::PermissionsExt;
     let meta = std::fs::metadata(local).with_context(|| local.display().to_string())?;
     if meta.is_dir() {
         bail!("scp: directories are not supported, use sftp mode");
@@ -69,7 +68,8 @@ pub async fn upload(h: &Handle, local: &Path, remote: &str, progress: impl Fn(u6
     r.ack().await?;
     let name = local.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_else(|| "file".into());
     let size = meta.len();
-    r.ch.data(format!("C{:04o} {size} {name}\n", meta.permissions().mode() & 0o7777).as_bytes()).await?;
+    r.ch.data(format!("C{:04o} {size} {name}\n", crate::platform::file_mode(&meta).unwrap_or(0o644)).as_bytes())
+        .await?;
     r.ack().await?;
     let mut f = tokio::fs::File::open(local).await?;
     let mut buf = vec![0u8; 128 * 1024];
@@ -90,7 +90,6 @@ pub async fn upload(h: &Handle, local: &Path, remote: &str, progress: impl Fn(u6
 }
 
 pub async fn download(h: &Handle, remote: &str, local: &Path, progress: impl Fn(u64, u64)) -> Result<()> {
-    use std::os::unix::fs::PermissionsExt;
     let ch = h.channel_open_session().await?;
     ch.exec(true, format!("scp -f {}", shell_quote(remote))).await?;
     let mut r = Reader { ch, buf: VecDeque::new(), stderr: String::new() };
@@ -127,7 +126,7 @@ pub async fn download(h: &Handle, remote: &str, local: &Path, progress: impl Fn(
     out.flush().await?;
     r.ack().await?;
     r.ch.data(&[0u8][..]).await?;
-    let _ = std::fs::set_permissions(&target, std::fs::Permissions::from_mode(mode & 0o7777));
+    crate::platform::set_mode(&target, mode);
     r.ch.eof().await?;
     Ok(())
 }

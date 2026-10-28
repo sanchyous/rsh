@@ -95,14 +95,12 @@ pub fn fmt_perms(mode: Option<u32>, is_dir: bool, is_link: bool) -> String {
 }
 
 pub fn write_private(path: &Path, data: &[u8]) -> std::io::Result<()> {
-    use std::os::unix::fs::OpenOptionsExt;
     if let Some(dir) = path.parent() {
-        std::fs::create_dir_all(dir)?;
-        let _ = std::fs::set_permissions(dir, std::os::unix::fs::PermissionsExt::from_mode(0o700));
+        crate::platform::private_dir(dir)?;
     }
     let tmp = path.with_extension("tmp");
     {
-        let mut f = std::fs::OpenOptions::new().write(true).create(true).truncate(true).mode(0o600).open(&tmp)?;
+        let mut f = crate::platform::create_private(&tmp)?;
         f.write_all(data)?;
         f.sync_all()?;
     }
@@ -128,7 +126,7 @@ pub fn parent_remote(path: &str) -> String {
 pub fn tilde(path: &str, home: Option<&str>) -> String {
     match home.filter(|h| h.len() > 1) {
         Some(h) if path == h => "~".into(),
-        Some(h) if path.starts_with(h) && path[h.len()..].starts_with('/') => format!("~{}", &path[h.len()..]),
+        Some(h) if path.starts_with(h) && path[h.len()..].starts_with(['/', '\\']) => format!("~{}", &path[h.len()..]),
         _ => path.to_string(),
     }
 }
@@ -138,15 +136,16 @@ pub fn shorten_path(path: &str, width: usize) -> String {
     if path.width() <= width {
         return path.to_string();
     }
+    let sep = if path.contains('/') { '/' } else { '\\' };
     let mut out = String::new();
-    for part in path.split('/').rev().filter(|p| !p.is_empty()) {
-        let next = format!("/{part}{out}");
+    for part in path.split(sep).rev().filter(|p| !p.is_empty()) {
+        let next = format!("{sep}{part}{out}");
         if next.width() + 1 > width {
             break;
         }
         out = next;
     }
-    if out.is_empty() { ellipsize(path.rsplit('/').next().unwrap_or(path), width) } else { format!("…{out}") }
+    if out.is_empty() { ellipsize(path.rsplit(sep).next().unwrap_or(path), width) } else { format!("…{out}") }
 }
 
 pub fn new_id() -> String {
@@ -189,6 +188,8 @@ mod tests {
         assert_eq!(tilde("/home/u/Проекты", Some("/home/u")), "~/Проекты");
         assert_eq!(tilde("/home/user2", Some("/home/u")), "/home/user2");
         assert_eq!(shorten_path("/very/long/Проекты/rsh", 14), "…/Проекты/rsh");
+        assert_eq!(shorten_path(r"C:\Users\u\Documents\work", 16), r"…\Documents\work");
+        assert_eq!(tilde(r"C:\Users\u\src", Some(r"C:\Users\u")), r"~\src");
     }
     #[test]
     fn remote_paths() {

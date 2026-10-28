@@ -71,17 +71,24 @@ pub async fn probe(address: &str, port: u16, method: PingMethod, timeout: Durati
             Some(t.elapsed())
         }
         PingMethod::Icmp => {
-            let secs = timeout.as_secs().max(1).to_string();
-            let out = tokio::process::Command::new("ping")
-                .args(["-c", "1", "-n", "-W", &secs, address])
-                .output()
-                .await
-                .ok()?;
-            if !out.status.success() {
+            if !address.chars().all(|c| c.is_ascii_alphanumeric() || ".:-_[]%".contains(c)) {
                 return None;
             }
-            let s = String::from_utf8_lossy(&out.stdout);
-            let ms: f64 = s.split("time=").nth(1)?.split_whitespace().next()?.parse().ok()?;
+            let args = crate::platform::ping_args(address, timeout);
+            let mut cmd = if cfg!(windows) {
+                let mut c = tokio::process::Command::new("cmd");
+                c.arg("/C").arg(format!("chcp 65001 >nul & ping {}", args.join(" ")));
+                c
+            } else {
+                let mut c = tokio::process::Command::new("ping");
+                c.args(&args);
+                c
+            };
+            let out = tokio::time::timeout(timeout + Duration::from_secs(2), cmd.kill_on_drop(true).output())
+                .await
+                .ok()?
+                .ok()?;
+            let ms = crate::platform::parse_ping_ms(&String::from_utf8_lossy(&out.stdout))?;
             Some(Duration::from_secs_f64(ms / 1000.0))
         }
     }

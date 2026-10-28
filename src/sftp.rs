@@ -108,7 +108,7 @@ impl Panel {
             self.marked.clear();
             self.filter.clear();
         }
-        if path != "/" {
+        if !self.is_root(&path) {
             entries
                 .insert(0, Entry { name: "..".into(), is_dir: true, is_link: false, size: 0, mtime: None, mode: None });
         }
@@ -213,17 +213,30 @@ impl Panel {
         }
     }
 
+    pub fn is_root(&self, path: &str) -> bool {
+        match self.side {
+            Side::Remote => path == "/",
+            Side::Local => Path::new(path).parent().is_none(),
+        }
+    }
+
     pub fn parent(&self) -> String {
         match self.side {
             Side::Remote => parent_remote(&self.path),
-            Side::Local => {
-                Path::new(&self.path).parent().map(|p| p.to_string_lossy().into_owned()).unwrap_or_else(|| "/".into())
-            }
+            Side::Local => Path::new(&self.path)
+                .parent()
+                .map(|p| p.to_string_lossy().into_owned())
+                .unwrap_or_else(|| self.path.clone()),
         }
     }
 
     pub fn dir_name(&self) -> String {
-        self.path.trim_end_matches('/').rsplit('/').next().unwrap_or("").to_string()
+        match self.side {
+            Side::Remote => self.path.trim_end_matches('/').rsplit('/').next().unwrap_or("").to_string(),
+            Side::Local => {
+                Path::new(&self.path).file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default()
+            }
+        }
     }
 
     pub fn marked_size(&self) -> u64 {
@@ -267,7 +280,6 @@ pub fn natural_cmp(a: &str, b: &str) -> std::cmp::Ordering {
 }
 
 pub fn list_local(path: &str) -> Result<Vec<Entry>> {
-    use std::os::unix::fs::MetadataExt;
     let mut out = Vec::new();
     for de in std::fs::read_dir(path)? {
         let de = de?;
@@ -279,8 +291,8 @@ pub fn list_local(path: &str) -> Result<Vec<Entry>> {
             is_dir: meta.is_dir(),
             is_link,
             size: if meta.is_dir() { 0 } else { meta.len() },
-            mtime: Some(meta.mtime()),
-            mode: Some(meta.mode() & 0o7777),
+            mtime: crate::platform::mtime(&meta),
+            mode: crate::platform::file_mode(&meta),
         });
     }
     Ok(out)
@@ -418,7 +430,6 @@ fn upload<'a>(
     buf_size: usize,
 ) -> futures::future::BoxFuture<'a, Result<()>> {
     Box::pin(async move {
-        use std::os::unix::fs::PermissionsExt;
         cancelled(p)?;
         let meta = std::fs::metadata(&src)?;
         if meta.is_dir() {
@@ -445,9 +456,11 @@ fn upload<'a>(
             p.done.fetch_add(n as u64, Ordering::Relaxed);
         }
         out.shutdown().await?;
-        let mut attrs = russh_sftp::protocol::FileAttributes::empty();
-        attrs.permissions = Some(meta.permissions().mode() & 0o7777);
-        let _ = s.set_metadata(dst, attrs).await;
+        if cfg!(unix) {
+            let mut attrs = russh_sftp::protocol::FileAttributes::empty();
+            attrs.permissions = crate::platform::file_mode(&meta);
+            let _ = s.set_metadata(dst, attrs).await;
+        }
         p.files_done.fetch_add(1, Ordering::Relaxed);
         Ok(())
     })
@@ -461,7 +474,6 @@ fn download<'a>(
     buf_size: usize,
 ) -> futures::future::BoxFuture<'a, Result<()>> {
     Box::pin(async move {
-        use std::os::unix::fs::PermissionsExt;
         cancelled(p)?;
         let meta = s.metadata(src.clone()).await?;
         if meta.file_type().is_dir() {
@@ -490,7 +502,7 @@ fn download<'a>(
         }
         out.flush().await?;
         if let Some(mode) = meta.permissions {
-            let _ = std::fs::set_permissions(&dst, std::fs::Permissions::from_mode(mode & 0o7777));
+            crate::platform::set_mode(&dst, mode);
         }
         p.files_done.fetch_add(1, Ordering::Relaxed);
         Ok(())

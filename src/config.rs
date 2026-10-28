@@ -139,7 +139,9 @@ impl Settings {
         if !self.editor.trim().is_empty() {
             return self.editor.clone();
         }
-        std::env::var("VISUAL").or_else(|_| std::env::var("EDITOR")).unwrap_or_else(|_| "nano".into())
+        std::env::var("VISUAL")
+            .or_else(|_| std::env::var("EDITOR"))
+            .unwrap_or_else(|_| crate::platform::default_editor().into())
     }
 }
 

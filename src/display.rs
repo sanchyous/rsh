@@ -41,7 +41,13 @@ pub fn detect_tty() -> bool {
 pub fn detect_depth() -> Depth {
     let ct = std::env::var("COLORTERM").unwrap_or_default().to_lowercase();
     let term = std::env::var("TERM").unwrap_or_default();
-    if ct.contains("truecolor") || ct.contains("24bit") || term.contains("kitty") || term.contains("direct") {
+    if cfg!(windows)
+        || std::env::var_os("WT_SESSION").is_some()
+        || ct.contains("truecolor")
+        || ct.contains("24bit")
+        || term.contains("kitty")
+        || term.contains("direct")
+    {
         Depth::True
     } else if term.contains("256") {
         Depth::C256

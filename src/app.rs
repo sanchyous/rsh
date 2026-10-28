@@ -597,7 +597,7 @@ impl App {
                 let program = if edit {
                     self.settings.editor_cmd()
                 } else {
-                    std::env::var("PAGER").unwrap_or_else(|_| "less".into())
+                    std::env::var("PAGER").unwrap_or_else(|_| crate::platform::default_pager().into())
                 };
                 let after = if edit { After::Upload { sid, remote, before } } else { After::Cleanup };
                 self.suspend = Some(Suspend { program, file: local, after });
@@ -1152,7 +1152,6 @@ impl App {
     }
 
     fn spawn_window(&mut self, host: &Host, creds: Creds) -> anyhow::Result<()> {
-        use std::os::unix::process::CommandExt;
         if self.handoff.is_none() {
             self.handoff = Some(Handoff::start()?);
         }
@@ -1162,15 +1161,16 @@ impl App {
         let cmd = vec![exe, "connect".into(), host.id.clone()];
         let title = format!("rsh · {}", host.name);
         let (prog, args) = terminal_command(&self.settings.terminal_cmd, &title, &cmd)?;
-        std::process::Command::new(prog)
+        let mut child = std::process::Command::new(prog);
+        child
             .args(args)
-            .env(handoff::ENV_SOCK, &ho.path)
+            .env(handoff::ENV_SOCK, &ho.address)
             .env(handoff::ENV_TOKEN, token)
             .stdin(std::process::Stdio::null())
             .stdout(std::process::Stdio::null())
-            .stderr(std::process::Stdio::null())
-            .process_group(0)
-            .spawn()?;
+            .stderr(std::process::Stdio::null());
+        crate::platform::detach(&mut child);
+        child.spawn()?;
         Ok(())
     }
 
@@ -1555,7 +1555,7 @@ impl App {
             }
             KeyCode::Backspace | KeyCode::Left if !shift => {
                 let p = &v.panels[idx];
-                if p.path != "/" {
+                if !p.is_root(&p.path) {
                     let (path, focus) = (p.parent(), Some(p.dir_name()));
                     self.navigate(sid, idx, path, focus);
                 }
@@ -1658,7 +1658,7 @@ impl App {
                 let program = if edit {
                     self.settings.editor_cmd()
                 } else {
-                    std::env::var("PAGER").unwrap_or_else(|_| "less".into())
+                    std::env::var("PAGER").unwrap_or_else(|_| crate::platform::default_pager().into())
                 };
                 self.suspend = Some(Suspend { program, file: PathBuf::from(path), after: After::RefreshLocal(sid) });
             }
@@ -1677,8 +1677,7 @@ impl App {
                 tokio::spawn(async move {
                     let res: anyhow::Result<PathBuf> = async {
                         let data = sftp.read(path.clone()).await?;
-                        std::fs::create_dir_all(&dir)?;
-                        std::fs::set_permissions(&dir, std::os::unix::fs::PermissionsExt::from_mode(0o700))?;
+                        crate::platform::private_dir(&dir)?;
                         let local = dir.join(&e.name);
                         std::fs::write(&local, data)?;
                         Ok(local)
@@ -2425,10 +2424,13 @@ const TERMINALS: &[&str] =
     &["kitty", "alacritty", "foot", "wezterm", "ghostty", "konsole", "gnome-terminal", "xfce4-terminal", "xterm"];
 
 fn in_path(bin: &str) -> bool {
-    std::env::var_os("PATH").is_some_and(|p| std::env::split_paths(&p).any(|d| d.join(bin).is_file()))
+    crate::platform::exe_in_path(bin)
 }
 
 pub fn detect_terminal() -> Option<String> {
+    if cfg!(windows) {
+        return Some("start".into());
+    }
     if let Ok(t) = std::env::var("TERMINAL")
         && in_path(t.split_whitespace().next().unwrap_or(""))
     {
@@ -2460,9 +2462,15 @@ pub fn terminal_command(setting: &str, title: &str, cmd: &[String]) -> anyhow::R
     } else {
         setting.to_string()
     };
-    let base = term.split('/').next_back().unwrap_or(&term).to_string();
+    let base = term.rsplit(['/', '\\']).next().unwrap_or(&term).trim_end_matches(".exe").to_string();
     let title = title.to_string();
+    if base == "start" {
+        let mut args = vec!["/C".into(), "start".into(), title];
+        args.extend(cmd.iter().cloned());
+        return Ok(("cmd".into(), args));
+    }
     let mut args: Vec<String> = match base.as_str() {
+        "wt" => vec!["-w".into(), "new".into(), "new-tab".into(), "--title".into(), title, "--".into()],
         "kitty" => vec!["--title".into(), title],
         "alacritty" => vec!["--title".into(), title, "-e".into()],
         "foot" => vec!["--title".into(), title],

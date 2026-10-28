@@ -9,8 +9,8 @@ provides=('rsh')
 conflicts=('rsh')
 source_x86_64=("rsh-$pkgver-x86_64.tar.gz::$url/releases/download/v$pkgver/rsh-x86_64-linux-musl.tar.gz")
 source_aarch64=("rsh-$pkgver-aarch64.tar.gz::$url/releases/download/v$pkgver/rsh-aarch64-linux-musl.tar.gz")
-sha256sums_x86_64=('SKIP')
-sha256sums_aarch64=('SKIP')
+sha256sums_x86_64=('20c31d35320edc2caecc6e31f2dd56ecb445be22ebf30273b3307786f98f6fe3')
+sha256sums_aarch64=('ef961a55aa3eed8e372ef88c5fd4d31adcb0ec4173ddfabd03048519737b29b1')
 
 package() {
     cd "rsh-$CARCH-linux-musl"

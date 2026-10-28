@@ -177,7 +177,7 @@ pub struct Creds {
 }
 
 pub fn expand_tilde(p: &str) -> PathBuf {
-    if let Some(rest) = p.strip_prefix("~/")
+    if let Some(rest) = p.strip_prefix("~/").or_else(|| p.strip_prefix("~\\"))
         && let Some(home) = dirs::home_dir()
     {
         return home.join(rest);
@@ -219,7 +219,28 @@ async fn try_key(h: &mut Handle, user: &str, path: &PathBuf, pass: Option<&str>)
 }
 
 async fn try_agent(h: &mut Handle, user: &str) -> Result<bool> {
-    let mut agent = russh::keys::agent::client::AgentClient::connect_env().await?;
+    use russh::keys::agent::client::AgentClient;
+    #[cfg(unix)]
+    return agent_auth(h, user, AgentClient::connect_env().await?).await;
+    #[cfg(windows)]
+    {
+        if let Ok(a) = AgentClient::connect_named_pipe(r"\\.\pipe\openssh-ssh-agent").await
+            && agent_auth(h, user, a).await.unwrap_or(false)
+        {
+            return Ok(true);
+        }
+        agent_auth(h, user, AgentClient::connect_pageant().await?).await
+    }
+}
+
+async fn agent_auth<S>(
+    h: &mut Handle,
+    user: &str,
+    mut agent: russh::keys::agent::client::AgentClient<S>,
+) -> Result<bool>
+where
+    S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin + Send + 'static,
+{
     let ids = agent.request_identities().await?;
     let hash = rsa_hash(h).await;
     for id in ids {
